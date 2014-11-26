@@ -46,14 +46,11 @@ class ImportEmail extends Command {
 	        $rawEmail .= fread($fd, 1024);
 	    }
 	    fclose($fd);
-var_dump($rawEmail);
+
 		$parser = new Parser();
 		$parser->setText($rawEmail);
 
 		$from = $parser->getHeader('from');
-
-		$subject = $parser->getHeader('subject');
-		$text = $parser->getMessageBody('text');
 
 		$recipients = array();
 
@@ -76,6 +73,9 @@ var_dump($rawEmail);
 
 		$message = new Message();
 		$message->owner_id = $owner->id;
+
+		$message->subject = $parser->getHeader('subject');
+		$message->body = $parser->getMessageBody('text');
 
 		$message->uuid = Uuid::generate(4);
 		$message->save();

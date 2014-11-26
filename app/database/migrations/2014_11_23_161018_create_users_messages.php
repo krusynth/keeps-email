@@ -31,6 +31,7 @@ class CreateUsersMessages extends Migration {
 			$table->dateTime('sent_datetime');
 	        $table->integer('owner_id')->unsigned();
 			$table->foreign('owner_id')->references('id')->on('users');
+			$table->string('subject', 1024);
 			$table->text('body');
 			$table->timestamps();
 	    });
