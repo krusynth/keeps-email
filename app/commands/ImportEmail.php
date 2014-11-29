@@ -41,55 +41,69 @@ class ImportEmail extends Command {
 	{
 		// read from stdin
 	    $fd = fopen("php://stdin", "r");
-	    $rawEmail = "";
+	    $email = "";
 	    while (!feof($fd)) {
-	        $rawEmail .= fread($fd, 1024);
+	        $email .= fread($fd, 1024);
 	    }
 	    fclose($fd);
 
-		$parser = new Parser();
-		$parser->setText($rawEmail);
+	    $message = $this->createMessage($email);
+	}
 
-		$from = $parser->getHeader('from');
+	protected function createMessage($email)
+	{
+		$parser = new Parser();
+		$parser->setText($email);
 
 		$recipients = array();
 
-		$owner = $this->email_address_to_user($from);
+		$sender = $this->getUserByEmail($parser->getHeader('from'));
+		$recipients[] = $sender->id;
 
-		$recipients[] = $owner->id;
-
-		foreach(explode(',', $parser->getHeader('to')) as $email)
+		if(strlen($parser->getHeader('to')))
 		{
-			$user = $this->email_address_to_user($email);
-			$recipients[] = $user->id;
+			foreach(explode(',', $parser->getHeader('to')) as $email)
+			{
+				$user = $this->getUserByEmail($email);
+				$recipients[] = $user->id;
+			}
 		}
-		foreach(explode(',', $parser->getHeader('cc')) as $email)
+
+		if(strlen($parser->getHeader('cc')))
 		{
-			$user = $this->email_address_to_user($email);
-			$recipients[] = $user->id;
+			foreach(explode(',', $parser->getHeader('cc')) as $email)
+			{
+				$user = $this->getUserByEmail($email);
+				$recipients[] = $user->id;
+			}
 		}
 
 		$recipients = array_unique($recipients);
 
 		$message = new Message();
-		$message->owner_id = $owner->id;
+		$message->sender_id = $sender->id;
+
+		$message->message_identifier = $parser->getHeader('message-id');
 
 		$message->subject = $parser->getHeader('subject');
 		$message->body = $parser->getMessageBody('text');
 
 		$message->uuid = Uuid::generate(4);
+
+		$thread = $this->getThread($message, $recipients);
+		$message->thread_id = $thread->id;
+
 		$message->save();
-
-
-		$message->recipients()->attach($recipients);
-		$message->push();
 	}
 
-	protected function email_address_to_user($email_address)
+	/**
+	 * Find the user that matches the email address, or create them.
+	 */
+	protected function getUserByEmail($email_address)
 	{
 		$email_address = trim($email_address);
 
-		if(preg_match('/^(?:<name>.*?) \<(?:<email>.*?)\>$/', $email_address, $matches))
+		if(preg_match('/^(?P<name>.*?) \<(?P<email>.*?)\>$/', $email_address, $matches))
 		{
 			$name = $matches['name'];
 			$email = $matches['email'];
@@ -101,6 +115,7 @@ class ImportEmail extends Command {
 		}
 
 		$user = User::where('email', $email)->first();
+
 		if(!$user)
 		{
 			$user = new User();
@@ -111,6 +126,32 @@ class ImportEmail extends Command {
 		}
 
 		return $user;
+	}
+
+	/**
+	 * Find the correct thread, or create one.
+	 */
+	protected function getThread($message, $recipients)
+	{
+		$references = explode(' ', $message->references);
+
+		$thread = Thread::whereIn('message_identifier', $references)
+			->whereIn('owner_id', $recipients)
+			->take(1)
+			->first();
+
+		if(!$thread)
+		{
+			$thread = new Thread();
+			$thread->owner_id = $message->sender_id;
+			$thread->uuid = Uuid::generate(4);
+			$thread->message_identifier = $message->message_identifier;
+			$thread->save();
+		}
+
+		$thread->updateRecipients($recipients);
+
+		return $thread;
 	}
 
 	/**

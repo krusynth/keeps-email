@@ -28,9 +28,4 @@ class Message extends Eloquent implements UserInterface, RemindableInterface {
 		return $this->hasOne('User');
 	}
 
-	public function recipients()
-	{
-		 return $this->belongsToMany('User');
-	}
-
 }

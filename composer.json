@@ -7,7 +7,9 @@
 	"require": {
 		"laravel/framework": "4.2.*",
 		"messaged/php-mime-mail-parser": "dev-master",
-		"webpatser/laravel-uuid": "1.*"
+		"webpatser/laravel-uuid": "1.*",
+		"michelf/php-markdown": "~1.4",
+		"way/generators": "~2.0"
 	},
 	"autoload": {
 		"classmap": [
